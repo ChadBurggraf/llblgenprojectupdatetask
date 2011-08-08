@@ -1,5 +1,7 @@
-<Project ToolsVersion="3.5" DefaultTargets="Compile" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\MSBuildCommunityTasks\MSBuild.Community.Tasks.Targets" />
   <UsingTask TaskName="FxCop" AssemblyFile="Tools\FxCopTask\FxCopTask.dll"/>
+  <UsingTask TaskName="GetVersion" AssemblyFile="Tools\Tasty\Tasty.dll"/>
   
   <PropertyGroup>
     <ArtifactDir>$(MSBuildProjectDirectory)\Artifacts</ArtifactDir>
@@ -17,8 +19,27 @@
 
   <ItemGroup>
     <CompileProjects Include="$(SourceDir)\LLBLGenProjectUpdateTask\LLBLGenProjectUpdateTask.csproj"/>
-    <CompileProjects Include="$(SourceDir)\LLBLGenProjectUpdateTask.Test\LLBLGenProjectUpdateTask.Test.csproj"/>
+    <CompileProjects Include="$(SourceDir)\LLBLGenProjectUpdateTask.Test\LLBLGenProjectUpdateTask.Test.csproj" Condition="'$(Configuration)' == 'Debug'"/>
   </ItemGroup>
+
+  <Target Name="Build" DependsOnTargets="GetVersion;Compile">
+    <RemoveDir Directories="$(BuildDir)"/>
+    <MakeDir Directories="$(BuildDir)"/>
+    <CallTarget Targets="CodeAnalysis"/>
+
+    <ItemGroup>
+      <OutputFiles Include="$(SourceDir)\LLBLGenProjectUpdateTask\bin\$(Configuration)\*.dll"/>
+      <OutputFiles Include="$(SourceDir)\LLBLGenProjectUpdateTask\bin\$(Configuration)\*.pdb"/>
+      <OutputFiles Include="$(SourceDir)\LLBLGenProjectUpdateTask\bin\$(Configuration)\*.xml"/>
+      <OutputFiles Include="$(MSBuildProjectDirectory)\README.md"/>
+    </ItemGroup>
+    <Copy SourceFiles="@(OutputFiles)" DestinationFolder="$(BuildDir)"/>
+
+    <ItemGroup>
+      <PackageFiles Include="$(BuildDir)\**\*.*" Exclude="*.zip"/>
+    </ItemGroup>
+    <Zip Files="@(PackageFiles)" WorkingDirectory="$(BuildDir)" ZipFileName="$(BuildDir)\LLBLGenProjectUpdateTask-$(Major).$(Minor).$(Build).$(Revision).zip"/>
+  </Target>
 
   <Target Name="Clean">
     <MSBuild Projects="@(CompileProjects)" Targets="Clean" Properties="Configuration=$(Configuration)"/>
@@ -30,7 +51,6 @@
   </Target>
 
   <Target Name="CodeAnalysis">
-    <Error Text="The current configuration is '$(Configuration)'; supporessions are only emitted when the configuration is 'Debug'." Condition="'$(Configuration)' != 'Debug'"/>
     <CallTarget Targets="FxCop"/>
     <CallTarget Targets="Test"/>
   </Target>
@@ -39,14 +59,25 @@
     <MSBuild Projects="@(CompileProjects)" Properties="Configuration=$(Configuration);SignAssembly=$(SignAssembly);AssemblyOriginatorKeyFile=$(AssemblyOriginatorKeyFile)"/>
   </Target>
 
-  <Target Name="FxCop" DependsOnTargets="Compile">
+  <Target Name="FxCop">
+    <MSBuild Projects="@(CompileProjects)" Properties="Configuration=Debug"/>
+
     <ItemGroup>
-      <FxCopAssemblies Include="$(SourceDir)\LLBLGenProjectUpdateTask\bin\$(Configuration)\LLBLGenProjectUpdateTask.dll"/>
-      <FxCopAssemblies Include="$(SourceDir)\LLBLGenProjectUpdateTask.Test\bin\$(Configuration)\LLBLGenProjectUpdateTask.Test.dll"/>
+      <FxCopAssemblies Include="$(SourceDir)\LLBLGenProjectUpdateTask\bin\Debug\LLBLGenProjectUpdateTask.dll"/>
+      <FxCopAssemblies Include="$(SourceDir)\LLBLGenProjectUpdateTask.Test\bin\Debug\LLBLGenProjectUpdateTask.Test.dll"/>
     </ItemGroup>
     
     <MakeDir Directories="$(ArtifactDir)"/>
     <FxCop Assemblies="@(FxCopAssemblies)" Output="$(ArtifactDir)\FxCop.xml"/>
+  </Target>
+
+  <Target Name="GetVersion">
+    <GetVersion AssemblyInfoFile="$(SourceDir)\SolutionInfo.cs">
+      <Output TaskParameter="Major" PropertyName="Major"/>
+      <Output TaskParameter="Minor" PropertyName="Minor"/>
+      <Output TaskParameter="Build" PropertyName="Build"/>
+      <Output TaskParameter="Revision" PropertyName="Revision"/>
+    </GetVersion>
   </Target>
 
   <Target Name="Test" Condition="Exists('$(MsTestPath)')">

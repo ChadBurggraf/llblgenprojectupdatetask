@@ -6,8 +6,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{5080F875-4D56-477A-9ED3-9C94D4A0ACF3}"
 	ProjectSection(SolutionItems) = preProject
 		..\build.proj = ..\build.proj
+		..\LICENSE.txt = ..\LICENSE.txt
 		LLBLGenProjectUpdateTask.vsmdi = LLBLGenProjectUpdateTask.vsmdi
 		LocalTestRun.testrunconfig = LocalTestRun.testrunconfig
+		..\README.md = ..\README.md
 		SolutionInfo.cs = SolutionInfo.cs
 	EndProjectSection
 EndProject

@@ -1,0 +1,17 @@
+﻿<Project ToolsVersion="3.5" DefaultTargets="LLBLGen" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <UsingTask TaskName="LLBLGenProjectUpdate" AssemblyFile="LLBLGenProjectUpdateTask.dll"/>
+
+  <PropertyGroup>
+    <Project>TypeShortcutDefinition.llblgenproj</Project>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <TypeShortcuts Include="^SurveyEngine\..+">
+      <Version>2.3.5.3</Version>
+    </TypeShortcuts>
+  </ItemGroup>
+
+  <Target Name="LLBLGen">
+    <LLBLGenProjectUpdate Projects="$(Project)" TypeShortcuts="@(TypeShortcuts)"/>
+  </Target>
+</Project>

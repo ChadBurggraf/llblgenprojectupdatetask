@@ -7,6 +7,7 @@
 namespace LLBLGenProjectUpdateTask.Test
 {
     using System;
+    using System.IO;
     using Microsoft.Build.BuildEngine;
     using Microsoft.Build.Framework;
     using Microsoft.Build.Utilities;
@@ -19,6 +20,19 @@ namespace LLBLGenProjectUpdateTask.Test
     [TestClass]
     public sealed class ExecutionTests
     {
+        /// <summary>
+        /// Empty execution tests.
+        /// </summary>
+        [TestMethod]
+        public void ExecutionEmpty()
+        {
+            var engineMock = new Mock<IBuildEngine>();
+
+            var task = new LLBLGenProjectUpdate();
+            task.BuildEngine = engineMock.Object;
+            Assert.IsTrue(task.Execute());
+        }
+
         /// <summary>
         /// Invalid action tests.
         /// </summary>
@@ -36,6 +50,16 @@ namespace LLBLGenProjectUpdateTask.Test
             task.BuildEngine = engineMock.Object;
             task.Action = "Not an action";
             Assert.IsFalse(task.Execute());
+        }
+
+        /// <summary>
+        /// Type shortcut definition project tests.
+        /// </summary>
+        [TestMethod]
+        public void ExecutionTypeShortcutDefinitionProject()
+        {
+            File.Copy("TestProject.llblgenproj", "TypeShortcutDefinition.llblgenproj");
+            Assert.IsTrue(Engine.GlobalEngine.BuildProjectFile("TypeShortcutDefinition.proj"));
         }
     }
 }

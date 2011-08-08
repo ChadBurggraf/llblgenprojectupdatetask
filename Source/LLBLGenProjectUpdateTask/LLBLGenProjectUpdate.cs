@@ -10,6 +10,9 @@ namespace LLBLGenProjectUpdateTask
     using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Security.Permissions;
+    using System.Text.RegularExpressions;
+    using System.Xml;
+    using System.Xml.XPath;
     using Microsoft.Build.Framework;
     using Microsoft.Build.Utilities;
 
@@ -55,6 +58,7 @@ namespace LLBLGenProjectUpdateTask
         /// </summary>
         /// <returns>True if the task succeeded, false otherwise.</returns>
         [PermissionSetAttribute(SecurityAction.Demand, Name = "FullTrust")]
+        [SuppressMessage("Microsoft.Globalization", "CA1303:DoNotPassLiteralsAsLocalizedParameters", Justification = "Yeah, I don't plan on localizing this.")]
         public override bool Execute()
         {
             bool success = false;
@@ -73,27 +77,55 @@ namespace LLBLGenProjectUpdateTask
                             {
                                 var project = this.Projects[i];
                                 string inputPath = project.GetMetadata("FullPath");
-
+                                Log.LogMessage("Processing project at '{0}'.", inputPath);
+                                
                                 if (File.Exists(inputPath))
                                 {
-                                    string outputPath = this.TargetProjects != null && this.TargetProjects.Length > 0 ?
-                                        this.TargetProjects[i].GetMetadata("FullPath") :
-                                        inputPath;
+                                    XmlDocument projectDoc = new XmlDocument();
 
-                                    switch (this.parsedAction)
+                                    try
                                     {
-                                        case LLBLGenProjectUpdateAction.TypeShortcuts:
-                                            success = this.ExecuteTypeShortcuts(inputPath, outputPath);
-                                            break;
-                                        default:
-                                            Log.LogError("Unknown action: '{0}'.", this.parsedAction);
-                                            success = false;
-                                            break;
+                                        projectDoc.Load(inputPath);
+                                    }
+                                    catch (XmlException)
+                                    {
+                                        Log.LogError("The project file at '{0}' is not a valid XML document.", inputPath);
+                                        success = false;
+                                    }
+                                    catch (IOException)
+                                    {
+                                        Log.LogError("An I/O error occurred while opening the project file at '{0}'.", inputPath);
+                                        success = false;
+                                    }
+                                    catch (UnauthorizedAccessException)
+                                    {
+                                        Log.LogError("Failed to open a read/write stream to the project file at '{0}'.", inputPath);
+                                        success = false;
+                                    }
+
+                                    if (success)
+                                    {
+                                        switch (this.parsedAction)
+                                        {
+                                            case LLBLGenProjectUpdateAction.TypeShortcuts:
+                                                success = this.ExecuteTypeShortcuts(projectDoc);
+                                                break;
+                                            default:
+                                                Log.LogError("Unknown action: '{0}'.", this.parsedAction);
+                                                success = false;
+                                                break;
+                                        }
+
+                                        string outputPath = this.TargetProjects != null && this.TargetProjects.Length > 0 ?
+                                            this.TargetProjects[i].GetMetadata("FullPath") :
+                                            inputPath;
+
+                                        projectDoc.Save(outputPath);
                                     }
                                 }
                                 else
                                 {
-                                    Log.LogError("There is not project file at '{0}'.", inputPath);
+                                    Log.LogError("There is no project file at '{0}'.", inputPath);
                                     success = false;
                                 }
                             }
@@ -111,14 +143,104 @@ namespace LLBLGenProjectUpdateTask
         }
 
         /// <summary>
+        /// Merges the metadata type information from the given <see cref="ITaskItem"/>
+        /// with the given <see cref="TypeName"/>, returning a new <see cref="TypeName"/> result instance.
+        /// </summary>
+        /// <param name="typeName">The <see cref="TypeName"/> to merge metadata with.</param>
+        /// <param name="taskItem">The <see cref="ITaskItem"/> to get type metadata from.</param>
+        /// <returns>A new, merged, <see cref="TypeName"/> instance.</returns>
+        private static TypeName MergeWithMetadata(TypeName typeName, ITaskItem taskItem)
+        {
+            TypeName result = typeName.Clone();
+            string value = taskItem.GetMetadata("Assembly");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.Assembly = value;
+            }
+
+            value = taskItem.GetMetadata("Culture");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.Culture = value;
+            }
+
+            value = taskItem.GetMetadata("Name");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.Name = value;
+            }
+
+            value = taskItem.GetMetadata("Namespace");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.Namespace = value;
+            }
+
+            value = taskItem.GetMetadata("PublicKeyToken");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.PublicKeyToken = value;
+            }
+
+            value = taskItem.GetMetadata("Version");
+
+            if (!string.IsNullOrEmpty(value))
+            {
+                result.Version = new Version(value);
+            }
+
+            return result;
+        }
+
+        /// <summary>
         /// Executs the type shortcuts action.
         /// </summary>
-        /// <param name="inputPath">The input project file path.</param>
-        /// <param name="outputPath">The output project file path.</param>
+        /// <param name="project">The project to operate on.</param>
         /// <returns>True if the action succeeded, false otherwise.</returns>
-        private bool ExecuteTypeShortcuts(string inputPath, string outputPath)
+        [SuppressMessage("Microsoft.Globalization", "CA1303:DoNotPassLiteralsAsLocalizedParameters", Justification = "Yeah, I don't plan on localizing this.")]
+        private bool ExecuteTypeShortcuts(XmlDocument project)
         {
-            throw new NotImplementedException();
+            bool success = true;
+            
+            if (this.TypeShortcuts != null)
+            {
+                foreach (var shortcut in this.TypeShortcuts)
+                {
+                    Regex exp = null;
+
+                    try
+                    {
+                        exp = new Regex(shortcut.ItemSpec);
+                    }
+                    catch (ArgumentException)
+                    {
+                        Log.LogError("Type shortcut '{0}' did not parse into a valid regular expression.", shortcut.ItemSpec);
+                        success = false;
+                    }
+
+                    if (exp != null)
+                    {
+                        foreach (XmlElement element in project.SelectNodes("/Project/TypeShortcuts/TypeShortcut"))
+                        {
+                            string shortcutType = element.Attributes["Type"].Value;
+
+                            if (exp.IsMatch(shortcutType))
+                            {
+                                TypeName mergedTypeName = MergeWithMetadata(TypeName.Parse(shortcutType), shortcut);
+                                element.SetAttribute("Type", mergedTypeName.ToString());
+                                Log.LogMessage("Updated type '{0}' to '{1}'.", shortcutType, mergedTypeName);
+                            }
+                        }
+                    }
+                }
+            }
+
+            return success;
         }
 
         /// <summary>
@@ -150,9 +272,10 @@ namespace LLBLGenProjectUpdateTask
         /// <summary>
         /// Logs the invalid action error to the current log.
         /// </summary>
+        [SuppressMessage("Microsoft.Globalization", "CA1303:DoNotPassLiteralsAsLocalizedParameters", Justification = "Yeah, I don't plan on localizing this.")]
         private void LogInvalidActionError()
         {
-            Log.LogError("Action is required and must be one of: {0}.", String.Join(", ", Enum.GetNames(typeof(LLBLGenProjectUpdateAction))));
+            Log.LogError("Action is required and must be one of: {0}.", string.Join(", ", Enum.GetNames(typeof(LLBLGenProjectUpdateAction))));
         }
     }
 }
