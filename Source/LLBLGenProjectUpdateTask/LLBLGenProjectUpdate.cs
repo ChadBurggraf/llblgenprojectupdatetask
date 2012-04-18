@@ -143,6 +143,26 @@ namespace LLBLGenProjectUpdateTask
         }
 
         /// <summary>
+        /// Gets a value indicating whether the given <see cref="ITaskItem"/> defines
+        /// the given metadata name.
+        /// </summary>
+        /// <param name="taskItem">The <see cref="ITaskItem"/> to check.</param>
+        /// <param name="name">The metadata name to look for.</param>
+        /// <returns>True if the metadata name is found, false otherwise.</returns>
+        private static bool MetadataNameDefined(ITaskItem taskItem, string name)
+        {
+            foreach (string metadataName in taskItem.MetadataNames)
+            {
+                if (metadataName.Equals(name, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// Merges the metadata type information from the given <see cref="ITaskItem"/>
         /// with the given <see cref="TypeName"/>, returning a new <see cref="TypeName"/> result instance.
         /// </summary>
@@ -152,46 +172,76 @@ namespace LLBLGenProjectUpdateTask
         private static TypeName MergeWithMetadata(TypeName typeName, ITaskItem taskItem)
         {
             TypeName result = typeName.Clone();
-            string value = taskItem.GetMetadata("Assembly");
+            string value = (taskItem.GetMetadata("Assembly") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.Assembly = value;
             }
 
-            value = taskItem.GetMetadata("Culture");
+            if (MetadataNameDefined(taskItem, "RemoveAssembly"))
+            {
+                result.Assembly = null;
+            }
+
+            value = (taskItem.GetMetadata("Culture") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.Culture = value;
             }
 
-            value = taskItem.GetMetadata("Name");
+            if (MetadataNameDefined(taskItem, "RemoveCulture"))
+            {
+                result.Culture = null;
+            }
+
+            value = (taskItem.GetMetadata("Name") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.Name = value;
             }
 
-            value = taskItem.GetMetadata("Namespace");
+            if (MetadataNameDefined(taskItem, "RemoveName"))
+            {
+                result.Name = null;
+            }
+
+            value = (taskItem.GetMetadata("Namespace") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.Namespace = value;
             }
 
-            value = taskItem.GetMetadata("PublicKeyToken");
+            if (MetadataNameDefined(taskItem, "RemoveNamespace"))
+            {
+                result.Namespace = null;
+            }
+
+            value = (taskItem.GetMetadata("PublicKeyToken") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.PublicKeyToken = value;
             }
 
-            value = taskItem.GetMetadata("Version");
+            if (MetadataNameDefined(taskItem, "RemovePublicKeyToken"))
+            {
+                result.PublicKeyToken = null;
+            }
+
+            value = (taskItem.GetMetadata("Version") ?? string.Empty).Trim();
 
             if (!string.IsNullOrEmpty(value))
             {
                 result.Version = new Version(value);
+            }
+
+            if (MetadataNameDefined(taskItem, "RemoveVersion"))
+            {
+                result.Version = null;
             }
 
             return result;
